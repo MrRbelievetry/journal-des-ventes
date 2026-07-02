@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Journal des ventes</title>
+    <link rel="icon" type="image/png" href="app-logo.png">
+    <link rel="apple-touch-icon" href="app-logo.png">
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+    <script src="app.js?v=36" defer></script>
+      </head>
+  <body>
+    <main>
+      <section id="appView" class="app-shell">
+        <header class="app-header">
+          <div class="brand-block">
+            <img src="app-logo.png" alt="" class="app-logo">
+            <div>
+              <p class="eyebrow">Edition comptable</p>
+              <h1>Journal des ventes</h1>
+            </div>
+          </div>
+          <button id="lockButton" class="secondary" type="button">Verrouiller</button>
+        </header>
+
+        <section class="period-panel">
+          <div>
+            <label for="periodStart">Debut de periode</label>
+            <input id="periodStart" type="date">
+          </div>
+          <div>
+            <label for="periodEnd">Fin de periode</label>
+            <input id="periodEnd" type="date">
+          </div>
+          <div>
+            <label for="companyName">Entreprise</label>
+            <input id="companyName" type="text" value="Entreprise individuelle REBAI" placeholder="Nom de l'entreprise">
+          </div>
+        </section>
+<section class="sources-grid">
+          <article class="source-card active">
+            <div>
+              <h2><button type="button" class="help-dot" aria-label="Aide" title="Aller dans le back office Oriental Discount, menu Commande, puis sous-menu Factures.">?</button> Source 1 - Oriental Discount</h2>
+              <p>Factures PrestaShop en PDF</p>
+            </div>
+            <input id="orientalFile" type="file" accept="application/pdf,.pdf">
+            <output id="orientalStatus">Aucun fichier importe</output>
+          </article>
+
+          <article class="source-card active">
+            <div>
+              <h2><button type="button" class="help-dot" aria-label="Aide" title="Aller dans le back office Oriental Discount, menu Commande, puis sous-menu Avoir.">?</button> Avoirs - Oriental Discount</h2>
+              <p>Avoirs PrestaShop en PDF, montants deduits en TVA 20 %</p>
+            </div>
+            <input id="orientalCreditFile" type="file" accept="application/pdf,.pdf">
+            <output id="orientalCreditStatus">Aucun fichier importe</output>
+          </article>
+
+          <article class="source-card active">
+            <div>
+              <h2><button type="button" class="help-dot" aria-label="Aide" title="Aller dans le back office Henne Discount, partie Commande, puis Factures.">?</button> Source 2 - Henne Discount</h2>
+              <p>Factures PrestaShop en PDF, TVA 20 %</p>
+            </div>
+            <input id="henneFile" type="file" accept="application/pdf,.pdf">
+            <output id="henneStatus">Aucun fichier importe</output>
+          </article>
+
+          <article class="source-card active">
+            <div>
+              <h2><button type="button" class="help-dot" aria-label="Aide" title="Aller dans Amazon Seller Central, puis juste sous le logo ouvrir la partie Référentiel des rapports.">?</button> Source 3 - Amazon</h2>
+              <p>Rapport des transactions en CSV</p>
+            </div>
+            <input id="amazonFile" type="file" accept=".csv,text/csv">
+            <output id="amazonStatus">Aucun fichier importe</output>
+          </article>
+
+          <article class="source-card active">
+            <div>
+              <h2><button type="button" class="help-dot" aria-label="Aide" title="Aller dans le Hub Vendeur, partie Commandes, sélectionner toutes les commandes, puis filtrer par date.">?</button> Source 4 - eBay</h2>
+              <p>Rapport des commandes en CSV, TVA 20 %</p>
+            </div>
+            <input id="ebayFile" type="file" accept=".csv,text/csv">
+            <output id="ebayStatus">Aucun fichier importe</output>
+          </article>
+        </section>
+
+        <section class="actions-panel">
+          <div>
+            <h2>Controle avant edition</h2>
+            <p id="qualityText">Importez au moins une source active pour generer le journal.</p>
+          </div>
+          <div class="action-buttons">
+            <button id="previewButton" type="button" class="secondary">Actualiser l'apercu</button>
+            <button id="csvButton" type="button" class="secondary" disabled>Telecharger CSV</button>
+            <button id="xlsxButton" type="button" class="secondary" disabled>Telecharger Excel</button>
+            <button id="summaryCsvButton" type="button" class="secondary" disabled>CSV synthese</button>
+            <button id="summaryXlsxButton" type="button" class="secondary" disabled>Excel synthese</button>
+            <button id="pdfButton" type="button" disabled>Telecharger le PDF</button>
+          </div>
+        </section>
+
+        <section class="summary-panel">
+          <h2>Synthese</h2>
+          <div id="summaryCards" class="summary-cards"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Source</th><th>Taux TVA</th><th>HT</th><th>TVA</th><th>TTC</th></tr></thead>
+              <tbody id="summaryRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="detail-panel">
+          <h2>Transactions</h2>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Source</th><th>Reference</th><th>Paiement</th><th>Taux</th><th>HT</th><th>TVA</th><th>TTC</th></tr></thead>
+              <tbody id="transactionRows"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

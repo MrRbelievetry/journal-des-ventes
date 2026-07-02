@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Acces - Journal des ventes</title>
+    <link rel="icon" type="image/png" href="app-logo.png">
+    <link rel="apple-touch-icon" href="app-logo.png">
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main>
+      <section class="login-shell">
+        <div class="login-panel">
+          <img src="app-logo.png" alt="" class="login-logo">
+          <p class="eyebrow">Acces securise</p>
+          <h1>Journal des ventes</h1>
+          <p class="muted">Saisissez le code a 4 chiffres pour ouvrir l'outil.</p>
+          <form id="pinForm" class="pin-form" onsubmit="return openJournal(event)">
+            <label for="pinInput">Code d'acces</label>
+            <input id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" maxlength="4" placeholder="0000" autofocus>
+            <button type="submit" onclick="return openJournal(event)">Ouvrir</button>
+            <p id="pinError" class="error" hidden>Code incorrect.</p>
+          </form>
+          <p class="security-note">Protection simple adaptee a GitHub Pages.</p>
+        </div>
+      </section>
+    </main>
+    <script>
+      function openJournal(event) {
+        if (event) event.preventDefault();
+        var input = document.getElementById('pinInput');
+        var error = document.getElementById('pinError');
+        if (input && input.value === '2300') {
+          try { sessionStorage.setItem('journalUnlocked', '1'); } catch (e) {}
+          window.location.href = 'app.html';
+          return false;
+        }
+        if (error) error.hidden = false;
+        return false;
+      }
+    </script>
+  </body>
+</html>
