@@ -41,9 +41,20 @@ vm.runInNewContext(code, context, { filename: 'app.js' });
 const api = context.__testApi;
 
 assert.strictEqual(api.normalizeAmazonDateRobust('2 juillet 2026 13:22:36 UTC'), '2026-07-02');
+assert.strictEqual(api.normalizeAmazonDateRobust('1 juil. 2026 08:31:35 UTC'), '2026-07-01');
+assert.strictEqual(api.normalizeAmazonDateRobust('5 janv. 2026 08:31:35 UTC'), '2026-01-05');
 assert.strictEqual(api.normalizeAmazonDateRobust('Jul 2, 2026 13:22:36 UTC'), '2026-07-02');
 assert.strictEqual(api.normalizeAmazonDateRobust('02/07/2026'), '2026-07-02');
 assert.strictEqual(api.normalizeAmazonDateRobust('2026-07-02T13:22:36Z'), '2026-07-02');
+
+const amazonCsvFixture = [
+  '"date/heure","numéro de versement","type","numéro de la commande","sku","description","quantité","Marketplace","traitement","ville d\'où provient la commande","Région d\'où provient la commande","code postal de la commande","Modèle de perception des taxes","ventes de produits","Taxes sur la vente des produits","crédits d\'expédition","taxe sur les crédits d’expédition","crédits sur l\'emballage cadeau","Taxes sur les crédits cadeaux","Rabais promotionnels","Taxes sur les remises promotionnelles","Taxes retenues sur le site de vente","frais de vente","Frais Expédié par Amazon","autres frais de transaction","autre","total","Statut de la transaction","Date de sortie de la transaction"',
+  '"1 juil. 2026 08:31:35 UTC","27486555222","Commande","171-9706558-5939530","SKU","Produit test","1","amazon.fr","Vendeur","Paris","","75000","","6,58","1,32","0","0","0","0","0","0","0","-0,75","0","-0,02","0","7,13","Sorti","10 juil. 2026 20:51:27 UTC"'
+].join('\n');
+const amazonFixtureRows = api.parseAmazonCsv(amazonCsvFixture);
+assert.strictEqual(amazonFixtureRows.length, 1);
+assert.strictEqual(amazonFixtureRows[0].reference, '171-9706558-5939530');
+assert.strictEqual(amazonFixtureRows[0].date, '2026-07-01');
 
 const sampleRows = [
   { source: 'Amazon', date: '2026-07-02', reference: '407-1', payment: 'Amazon', vatRate: 20, ht: 100, vat: 20, ttc: 120 },

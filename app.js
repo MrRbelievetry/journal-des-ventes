@@ -752,13 +752,13 @@ function normalizeAmazonDateRobust(value) {
     return year + '-' + numeric[2].padStart(2, '0') + '-' + numeric[1].padStart(2, '0');
   }
   const months = {
-    jan: '01', january: '01', janvier: '01',
+    jan: '01', janv: '01', january: '01', janvier: '01',
     feb: '02', february: '02', fev: '02', fevr: '02', fevrier: '02',
     mar: '03', march: '03', mars: '03',
     apr: '04', april: '04', avr: '04', avril: '04',
     may: '05', mai: '05',
     jun: '06', june: '06', juin: '06',
-    jul: '07', july: '07', juillet: '07',
+    jul: '07', juil: '07', july: '07', juillet: '07',
     aug: '08', august: '08', aout: '08',
     sep: '09', sept: '09', september: '09', septembre: '09',
     oct: '10', october: '10', octobre: '10',
