@@ -245,7 +245,7 @@ async function handleAmazon(event) {
 async function parsePrestaCreditPdf(file, source) {
   const pdfjsLib = globalThis.pdfjsLib;
   if (!pdfjsLib) throw new Error('lecteur PDF non charge');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   const credits = [];
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -377,7 +377,7 @@ function findCreditReference(lines) {
 async function parsePrestaPdf(file, source, options = {}) {
   const pdfjsLib = globalThis.pdfjsLib;
   if (!pdfjsLib) throw new Error('lecteur PDF non charge');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
   const invoices = [];
   const rejected = [];

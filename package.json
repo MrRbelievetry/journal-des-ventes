@@ -1,0 +1,73 @@
+{
+  "name": "journal-des-ventes",
+  "version": "1.0.0",
+  "description": "Journal des ventes et avoirs pour exports comptables.",
+  "author": "EI REBAI",
+  "main": "electron/main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "prepare:desktop": "node scripts/prepare-desktop-assets.js",
+    "test": "node --check app.js && node work/pennylane-smoke.test.js",
+    "dist": "node scripts/prepare-desktop-assets.js && electron-builder --win nsis portable --x64"
+  },
+  "dependencies": {
+    "jspdf": "2.5.1",
+    "jspdf-autotable": "3.8.4",
+    "pdfjs-dist": "3.11.174",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "fr.rebai.journaldesventes",
+    "productName": "Journal des ventes",
+    "copyright": "Copyright (c) 2026 EI REBAI",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "app.html",
+      "app.js",
+      "styles.css",
+      "app-logo.png",
+      "favicon.svg",
+      "vendor/**/*",
+      "assets/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "artifactName": "Journal-des-ventes-Setup-${version}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Journal des ventes"
+    },
+    "portable": {
+      "artifactName": "Journal-des-ventes-Portable-${version}.${ext}"
+    }
+  }
+}

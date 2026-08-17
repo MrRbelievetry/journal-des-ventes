@@ -17,6 +17,7 @@ Application web statique pour generer un journal des ventes et avoirs a partir d
 - Excel detaille
 - CSV de synthese comptable cumulee
 - Excel de synthese comptable cumulee
+- Excel Pennylane
 
 ## Publication GitHub Pages
 
@@ -26,6 +27,24 @@ Application web statique pour generer un journal des ventes et avoirs a partir d
 4. Choisir Deploy from a branch.
 5. Selectionner la branche main et le dossier /root.
 6. Ouvrir l'URL GitHub Pages generee.
+
+## Version Windows
+
+La version Windows est empaquetee avec Electron sans reecriture de la logique metier.
+
+Commandes de build :
+
+```bash
+pnpm install
+pnpm run dist
+```
+
+Le build genere :
+
+- `dist/Journal-des-ventes-Setup-1.0.0.exe`
+- `dist/Journal-des-ventes-Portable-1.0.0.exe`
+
+Les executables ne sont pas signes numeriquement. Windows SmartScreen peut donc afficher un avertissement au premier lancement.
 
 ## Securite
 
