@@ -1,5 +1,36 @@
 const PIN = '2300';
 const state = { oriental: [], orientalCredits: [], henne: [], amazon: [], ebay: [] };
+const PENNYLANE_HEADERS = [
+  'Date',
+  'Code Journal',
+  'Numéro de compte',
+  'Libellé de compte',
+  'Libellé de ligne',
+  'Taux de TVA du compte',
+  'Code pays du compte',
+  'Libellé de pièce',
+  'Numéro de pièce',
+  'Débit et/ou Crédit',
+  'Crédit',
+  'Famille de catégories',
+  'Catégorie',
+  'Identifiant de ligne',
+  'Identifiant de lettrage'
+];
+const PENNYLANE_CONFIG = {
+  journalCode: 'VT',
+  countryCode: 'FR',
+  categoryFamily: 'Types de dépenses / revenus',
+  salesCategory: 'Ventes de marchandises',
+  accounts: {
+    counterparty: { number: '411000', label: 'Clients ventes en ligne' },
+    sales: { number: '707000', label: 'Ventes de marchandises' },
+    salesExempt: { number: '707000', label: 'Ventes de marchandises exonérées' },
+    vatCollected: {
+      20: { number: '445710', label: 'TVA collectée 20 %' }
+    }
+  }
+};
 const money = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 function formatMoney(value) {
   return money.format(Number(value || 0)).replace(/[\u00A0\u202F]/g, ' ');
@@ -38,6 +69,8 @@ window.addEventListener('DOMContentLoaded', () => {
   el('xlsxButton')?.addEventListener('click', exportXlsx);
   el('summaryCsvButton')?.addEventListener('click', exportSummaryCsv);
   el('summaryXlsxButton')?.addEventListener('click', exportSummaryXlsx);
+  el('pennylaneCsvButton')?.addEventListener('click', exportPennylaneCsv);
+  el('pennylaneXlsxButton')?.addEventListener('click', exportPennylaneXlsx);
   setDefaultDates();
   render();
 });
@@ -645,9 +678,10 @@ function parseAmazonCsv(text) {
 
     const ht = round2(parseMoney(item.ventes_de_produits) + parseMoney(item.credits_dexpedition) + parseMoney(item.credits_sur_lemballage_cadeau) + parseMoney(item.rabais_promotionnels));
     const vat = round2(parseMoney(item.taxes_sur_la_vente_des_produits) + parseMoney(item.taxe_sur_les_credits_dexpedition) + parseMoney(item.taxes_sur_les_credits_cadeaux) + parseMoney(item.taxes_sur_les_remises_promotionnelles));
+    const amazonDate = normalizeAmazonDateRobust(item.date_heure) || normalizeAmazonDateRobust(item.date_de_sortie_de_la_transaction);
     const current = grouped.get(key) || {
       source,
-      date: normalizeAmazonDate(item.date_heure),
+      date: amazonDate,
       reference: order,
       payment,
       vatRate: 20,
@@ -707,6 +741,41 @@ function normalizeAmazonDate(value) {
   return match[3] + '-' + (months[match[2]] || '01') + '-' + match[1].padStart(2, '0');
 }
 
+function normalizeAmazonDateRobust(value) {
+  const raw = String(value || '').replace(/[\u00A0\u202F]/g, ' ').trim();
+  if (!raw) return '';
+  const iso = raw.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) return iso[1] + '-' + iso[2].padStart(2, '0') + '-' + iso[3].padStart(2, '0');
+  const numeric = raw.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/);
+  if (numeric) {
+    const year = numeric[3].length === 2 ? '20' + numeric[3] : numeric[3];
+    return year + '-' + numeric[2].padStart(2, '0') + '-' + numeric[1].padStart(2, '0');
+  }
+  const months = {
+    jan: '01', january: '01', janvier: '01',
+    feb: '02', february: '02', fev: '02', fevr: '02', fevrier: '02',
+    mar: '03', march: '03', mars: '03',
+    apr: '04', april: '04', avr: '04', avril: '04',
+    may: '05', mai: '05',
+    jun: '06', june: '06', juin: '06',
+    jul: '07', july: '07', juillet: '07',
+    aug: '08', august: '08', aout: '08',
+    sep: '09', sept: '09', september: '09', septembre: '09',
+    oct: '10', october: '10', octobre: '10',
+    nov: '11', november: '11', novembre: '11',
+    dec: '12', december: '12', decembre: '12'
+  };
+  const text = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const named = text.match(/(\d{1,2})[\s.-]+([a-z]+)\.?[,]?[\s.-]+(\d{2,4})/i) || text.match(/([a-z]+)\.?[\s.-]+(\d{1,2})[,]?[\s.-]+(\d{2,4})/i);
+  if (!named) return '';
+  const day = named[1].match(/^\d/) ? named[1] : named[2];
+  const monthKey = named[1].match(/^\d/) ? named[2] : named[1];
+  const yearRaw = named[3];
+  const year = yearRaw.length === 2 ? '20' + yearRaw : yearRaw;
+  const month = months[monthKey] || months[monthKey.slice(0, 3)];
+  return month ? year + '-' + month + '-' + day.padStart(2, '0') : '';
+}
+
 function allTransactions() {
   return [...state.oriental, ...state.orientalCredits, ...state.henne, ...state.amazon, ...state.ebay].sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.source.localeCompare(b.source));
 }
@@ -732,6 +801,8 @@ function render() {
   if (el('xlsxButton')) el('xlsxButton').disabled = rows.length === 0;
   if (el('summaryCsvButton')) el('summaryCsvButton').disabled = rows.length === 0;
   if (el('summaryXlsxButton')) el('summaryXlsxButton').disabled = rows.length === 0;
+  if (el('pennylaneCsvButton')) el('pennylaneCsvButton').disabled = rows.length === 0;
+  if (el('pennylaneXlsxButton')) el('pennylaneXlsxButton').disabled = rows.length === 0;
   el('qualityText').textContent = rows.length ? rows.length + ' transaction(s) prete(s) pour edition. Verifiez les lignes marquees a controler avant transmission.' : 'Importez au moins une source active pour generer le journal.';
   renderCards(rows);
   el('summaryRows').innerHTML = summary.map((row) => '<tr><td>' + row.source + '</td><td>' + row.vatRate + ' %</td><td>' + formatMoney(row.ht) + '</td><td>' + formatMoney(row.vat) + '</td><td>' + formatMoney(row.ttc) + '</td></tr>').join('');
@@ -1003,7 +1074,7 @@ function buildAutomaticControls(rows, counts) {
   const uniqueDuplicateRefs = Array.from(new Set(duplicateRefs));
   const lineTtcErrors = rows.filter((row) => Math.abs(round2(Number(row.ht || 0) + Number(row.vat || 0) - Number(row.ttc || 0))) > 0.02);
   const missingAmounts = rows.filter((row) => row.ht === null || row.ht === undefined || row.vat === null || row.vat === undefined || row.ttc === null || row.ttc === undefined || Number.isNaN(Number(row.ht)) || Number.isNaN(Number(row.vat)) || Number.isNaN(Number(row.ttc)));
-  const unknownVatRates = rows.filter((row) => ![0, 20].includes(Number(row.vatRate)));
+  const unknownVatRates = rows.filter((row) => !Number.isFinite(Number(row.vatRate)) || Number(row.vatRate) < 0 || Number(row.vatRate) > 100);
   const periodStart = el('periodStart')?.value || '';
   const periodEnd = el('periodEnd')?.value || '';
   const outOfPeriod = rows.filter((row) => {
@@ -1073,6 +1144,160 @@ function exportSummaryXlsx() {
   XLSX.writeFile(workbook, 'synthese-comptable-' + el('periodStart').value + '-' + el('periodEnd').value + '.xlsx');
 }
 
+function exportPennylaneCsv() {
+  const result = buildPennylaneExport(false);
+  if (!handlePennylaneValidation(result)) return;
+  const csv = toCsv(result.rows, PENNYLANE_HEADERS);
+  downloadBlob('\ufeff' + csv, 'pennylane-ecritures-' + el('periodStart').value + '-' + el('periodEnd').value + '.csv', 'text/csv;charset=utf-8');
+}
+
+function exportPennylaneXlsx() {
+  const result = buildPennylaneExport(true);
+  if (!handlePennylaneValidation(result)) return;
+  if (!window.XLSX) {
+    alert('Le module Excel n est pas encore charge. Rechargez la page puis reessayez.');
+    return;
+  }
+  const workbook = XLSX.utils.book_new();
+  const sheet = XLSX.utils.json_to_sheet(result.rows, { header: PENNYLANE_HEADERS });
+  XLSX.utils.book_append_sheet(workbook, sheet, 'Ecritures Pennylane');
+  XLSX.writeFile(workbook, 'pennylane-ecritures-' + el('periodStart').value + '-' + el('periodEnd').value + '.xlsx');
+}
+
+function buildPennylaneExport(forXlsx) {
+  const rows = allTransactions();
+  const issues = validateSourceRowsForPennylane(rows);
+  const entries = [];
+  rows.forEach((row, index) => {
+    entries.push(...buildPennylaneEntriesForTransaction(row, index + 1, forXlsx, issues));
+  });
+  issues.push(...validatePennylaneEntries(entries));
+  return { rows: entries, issues };
+}
+
+function buildPennylaneEntriesForTransaction(row, sequence, forXlsx, issues) {
+  const isCredit = isRefundSource(row.source) || Number(row.ttc || 0) < 0;
+  const absHt = Math.abs(toCents(row.ht));
+  const absVat = Math.abs(toCents(row.vat));
+  const absTtc = Math.abs(toCents(row.ttc));
+  const rate = Number(row.vatRate || 0);
+  const date = displayDate(row.date);
+  const reference = String(row.reference || '').trim();
+  const source = normalizedAccountingSource(row.source);
+  const type = accountingType(row);
+  const pieceLabel = source + ' - ' + type + ' - ' + reference;
+  const baseLabel = pieceLabel + ' - ' + displayPayment(row.payment);
+  const lineBase = sanitizeIdentifier(source + '-' + reference + '-' + sequence);
+  const salesAccount = rate === 0 ? PENNYLANE_CONFIG.accounts.salesExempt : PENNYLANE_CONFIG.accounts.sales;
+  const vatAccount = PENNYLANE_CONFIG.accounts.vatCollected[rate];
+  const entries = [];
+
+  if (!salesAccount?.number) issues.push('Compte de vente manquant pour ' + reference + ' (' + rate + ' %).');
+  if (absVat > 0 && !vatAccount?.number) issues.push('Compte de TVA manquant pour ' + reference + ' (' + rate + ' %).');
+
+  const add = (account, label, debitCents, creditCents, suffix, vatRateLabel, countryCode, category) => {
+    entries.push(buildPennylaneRow({
+      date,
+      account,
+      label,
+      debitCents,
+      creditCents,
+      lineId: lineBase + '-' + suffix,
+      pieceLabel,
+      reference,
+      vatRateLabel,
+      countryCode,
+      category,
+      forXlsx
+    }));
+  };
+
+  if (isCredit) {
+    add(salesAccount, baseLabel + ' - annulation vente HT', absHt, 0, 'vente', rate + ' %', PENNYLANE_CONFIG.countryCode, PENNYLANE_CONFIG.salesCategory);
+    if (absVat > 0) add(vatAccount, baseLabel + ' - annulation TVA', absVat, 0, 'tva', '', '', '');
+    add(PENNYLANE_CONFIG.accounts.counterparty, baseLabel + ' - remboursement client', 0, absTtc, 'client', '', '', '');
+  } else {
+    add(PENNYLANE_CONFIG.accounts.counterparty, baseLabel + ' - client TTC', absTtc, 0, 'client', '', '', '');
+    add(salesAccount, baseLabel + ' - vente HT', 0, absHt, 'vente', rate + ' %', PENNYLANE_CONFIG.countryCode, PENNYLANE_CONFIG.salesCategory);
+    if (absVat > 0) add(vatAccount, baseLabel + ' - TVA collectee', 0, absVat, 'tva', '', '', '');
+  }
+
+  return entries;
+}
+
+function buildPennylaneRow({ date, account, label, debitCents, creditCents, lineId, pieceLabel, reference, vatRateLabel, countryCode, category, forXlsx }) {
+  const row = {};
+  const debit = amountForPennylane(debitCents, forXlsx);
+  const credit = amountForPennylane(creditCents, forXlsx);
+  row[PENNYLANE_HEADERS[0]] = date;
+  row[PENNYLANE_HEADERS[1]] = PENNYLANE_CONFIG.journalCode;
+  row[PENNYLANE_HEADERS[2]] = account?.number || '';
+  row[PENNYLANE_HEADERS[3]] = account?.label || '';
+  row[PENNYLANE_HEADERS[4]] = label;
+  row[PENNYLANE_HEADERS[5]] = vatRateLabel || '';
+  row[PENNYLANE_HEADERS[6]] = countryCode || '';
+  row[PENNYLANE_HEADERS[7]] = pieceLabel;
+  row[PENNYLANE_HEADERS[8]] = reference;
+  row[PENNYLANE_HEADERS[9]] = debit;
+  row[PENNYLANE_HEADERS[10]] = credit;
+  row[PENNYLANE_HEADERS[11]] = category ? PENNYLANE_CONFIG.categoryFamily : '';
+  row[PENNYLANE_HEADERS[12]] = category || '';
+  row[PENNYLANE_HEADERS[13]] = lineId;
+  row[PENNYLANE_HEADERS[14]] = reference;
+  return row;
+}
+
+function validateSourceRowsForPennylane(rows) {
+  const issues = [];
+  rows.forEach((row, index) => {
+    const label = 'ligne source ' + (index + 1) + (row.reference ? ' (' + row.reference + ')' : '');
+    if (!row.date || displayDate(row.date) === 'A verifier') issues.push(label + ' : date absente ou illisible.');
+    if (!String(row.reference || '').trim()) issues.push(label + ' : reference manquante.');
+    if (![row.ht, row.vat, row.ttc].every((value) => Number.isFinite(Number(value)))) issues.push(label + ' : montant HT/TVA/TTC manquant ou invalide.');
+    if (!Number.isFinite(Number(row.vatRate))) issues.push(label + ' : taux de TVA non reconnu.');
+    if (Math.abs(toCents(row.ht) + toCents(row.vat) - toCents(row.ttc)) > 1) issues.push(label + ' : TTC incoherent avec HT + TVA.');
+  });
+  return issues;
+}
+
+function validatePennylaneEntries(entries) {
+  const issues = [];
+  const byPiece = new Map();
+  const lineIds = new Set();
+  for (const entry of entries) {
+    const piece = entry[PENNYLANE_HEADERS[7]] || 'piece sans libelle';
+    const debit = centsFromPennylane(entry[PENNYLANE_HEADERS[9]]);
+    const credit = centsFromPennylane(entry[PENNYLANE_HEADERS[10]]);
+    const account = entry[PENNYLANE_HEADERS[2]];
+    const lineId = entry[PENNYLANE_HEADERS[13]];
+    if (!account) issues.push(piece + ' : compte comptable manquant.');
+    if (!Number.isFinite(debit) || !Number.isFinite(credit)) issues.push(piece + ' : montant comptable invalide.');
+    if (debit > 0 && credit > 0) issues.push(piece + ' : une ligne ne peut pas etre a la fois au debit et au credit.');
+    if (debit === 0 && credit === 0) issues.push(piece + ' : ligne comptable sans montant.');
+    if (!lineId) issues.push(piece + ' : identifiant de ligne manquant.');
+    if (lineIds.has(lineId)) issues.push(piece + ' : identifiant de ligne en doublon (' + lineId + ').');
+    lineIds.add(lineId);
+    const item = byPiece.get(piece) || { debit: 0, credit: 0, count: 0 };
+    item.debit += debit;
+    item.credit += credit;
+    item.count += 1;
+    byPiece.set(piece, item);
+  }
+  for (const [piece, item] of byPiece.entries()) {
+    if (item.count < 2) issues.push(piece + ' : ecriture orpheline.');
+    if (Math.abs(item.debit - item.credit) > 1) issues.push(piece + ' : ecriture non equilibree (debit ' + centsToComma(item.debit) + ', credit ' + centsToComma(item.credit) + ').');
+  }
+  return issues;
+}
+
+function handlePennylaneValidation(result) {
+  if (!result.rows.length) return false;
+  if (!result.issues.length) return true;
+  const uniqueIssues = Array.from(new Set(result.issues));
+  alert('Export Pennylane bloque : ' + uniqueIssues.length + ' anomalie(s) detectee(s).\n\n' + uniqueIssues.slice(0, 12).join('\n') + (uniqueIssues.length > 12 ? '\n...' : ''));
+  return false;
+}
+
 function buildAccountingSummaryRows() {
   const map = new Map();
   for (const row of allTransactions()) {
@@ -1123,6 +1348,35 @@ function accountingSortKey(source, type, rate) {
   return sourceOrder + '-' + typeOrder + '-' + String(rate).padStart(3, '0');
 }
 
+function toCents(value) {
+  return Math.round(Number(value || 0) * 100);
+}
+
+function centsToComma(cents) {
+  return (Number(cents || 0) / 100).toFixed(2).replace('.', ',');
+}
+
+function amountForPennylane(cents, forXlsx) {
+  if (!cents) return forXlsx ? 0 : '';
+  return forXlsx ? cents / 100 : centsToComma(cents);
+}
+
+function centsFromPennylane(value) {
+  if (value === '' || value === null || value === undefined) return 0;
+  if (typeof value === 'number') return Math.round(value * 100);
+  const parsed = Number(String(value).replace(/\s/g, '').replace(',', '.'));
+  return Number.isFinite(parsed) ? Math.round(parsed * 100) : NaN;
+}
+
+function sanitizeIdentifier(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
+}
+
 function numberForExport(value) {
   return round2(value).toFixed(2).replace('.', ',');
 }
@@ -1140,8 +1394,7 @@ function buildExportRows() {
   }));
 }
 
-function toCsv(rows) {
-  const headers = Object.keys(rows[0]);
+function toCsv(rows, headers = Object.keys(rows[0])) {
   const escapeCell = (value) => '"' + String(value ?? '').replace(/"/g, '""') + '"';
   return [headers.map(escapeCell).join(';'), ...rows.map((row) => headers.map((header) => escapeCell(row[header])).join(';'))].join('\r\n');
 }
