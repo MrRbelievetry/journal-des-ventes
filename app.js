@@ -76,7 +76,6 @@ window.addEventListener('DOMContentLoaded', () => {
   el('xlsxButton')?.addEventListener('click', exportXlsx);
   el('summaryCsvButton')?.addEventListener('click', exportSummaryCsv);
   el('summaryXlsxButton')?.addEventListener('click', exportSummaryXlsx);
-  el('pennylaneCsvButton')?.addEventListener('click', exportPennylaneCsv);
   el('pennylaneXlsxButton')?.addEventListener('click', exportPennylaneXlsx);
   initPennylaneSettings();
   setDefaultDates();
@@ -109,11 +108,14 @@ function setDefaultDates() {
 function initPennylaneSettings() {
   const fields = pennylaneSettingFields();
   if (!fields.length) return;
-  const settings = getPennylaneSettings();
+  const saved = readPennylaneSettings();
+  const hasSavedSettings = Object.keys(saved).some((key) => Object.prototype.hasOwnProperty.call(PENNYLANE_DEFAULT_SETTINGS, key));
+  const settings = { ...PENNYLANE_DEFAULT_SETTINGS, ...saved };
   fields.forEach(({ key, input }) => {
     input.value = settings[key];
     input.addEventListener('input', savePennylaneSettingsFromInputs);
   });
+  if (!hasSavedSettings) savePennylaneSettings(PENNYLANE_DEFAULT_SETTINGS);
   el('pennylaneResetButton')?.addEventListener('click', resetPennylaneSettings);
 }
 
@@ -883,7 +885,6 @@ function render() {
   if (el('xlsxButton')) el('xlsxButton').disabled = rows.length === 0;
   if (el('summaryCsvButton')) el('summaryCsvButton').disabled = rows.length === 0;
   if (el('summaryXlsxButton')) el('summaryXlsxButton').disabled = rows.length === 0;
-  if (el('pennylaneCsvButton')) el('pennylaneCsvButton').disabled = rows.length === 0;
   if (el('pennylaneXlsxButton')) el('pennylaneXlsxButton').disabled = rows.length === 0;
   el('qualityText').textContent = rows.length ? rows.length + ' transaction(s) prete(s) pour edition. Verifiez les lignes marquees a controler avant transmission.' : 'Importez au moins une source active pour generer le journal.';
   renderCards(rows);
@@ -1226,13 +1227,6 @@ function exportSummaryXlsx() {
   XLSX.writeFile(workbook, 'synthese-comptable-' + el('periodStart').value + '-' + el('periodEnd').value + '.xlsx');
 }
 
-function exportPennylaneCsv() {
-  const result = buildPennylaneExport(false);
-  if (!handlePennylaneValidation(result)) return;
-  const csv = toCsv(result.rows, PENNYLANE_HEADERS);
-  downloadBlob('\ufeff' + csv, 'pennylane-ecritures-' + el('periodStart').value + '-' + el('periodEnd').value + '.csv', 'text/csv;charset=utf-8');
-}
-
 function exportPennylaneXlsx() {
   const result = buildPennylaneExport(true);
   if (!handlePennylaneValidation(result)) return;
@@ -1352,7 +1346,7 @@ function buildPennylaneRow({ date, account, label, debitCents, creditCents, piec
   row[PENNYLANE_HEADERS[11]] = category ? PENNYLANE_CONFIG.categoryFamily : '';
   row[PENNYLANE_HEADERS[12]] = category || '';
   row[PENNYLANE_HEADERS[13]] = '';
-  row[PENNYLANE_HEADERS[14]] = pieceNumber;
+  row[PENNYLANE_HEADERS[14]] = '';
   return row;
 }
 

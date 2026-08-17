@@ -7,6 +7,7 @@ globalThis.__testApi = {
   PENNYLANE_HEADERS,
   normalizeAmazonDateRobust,
   parseAmazonCsv,
+  initPennylaneSettings,
   buildPennylaneEntriesForTransaction,
   buildPennylanePieceNumber,
   getPennylaneSettings,
@@ -20,10 +21,10 @@ globalThis.__testApi = {
 const elements = {
   periodStart: { value: '2026-07-01' },
   periodEnd: { value: '2026-07-31' },
-  pennylaneJournalCode: { value: 'VT', addEventListener() {} },
-  pennylaneClientAccount: { value: '411000', addEventListener() {} },
-  pennylaneSalesAccount: { value: '707000', addEventListener() {} },
-  pennylaneVatAccount: { value: '445710', addEventListener() {} },
+  pennylaneJournalCode: { value: '', addEventListener() {} },
+  pennylaneClientAccount: { value: '', addEventListener() {} },
+  pennylaneSalesAccount: { value: '', addEventListener() {} },
+  pennylaneVatAccount: { value: '', addEventListener() {} },
   pennylaneResetButton: { addEventListener() {} }
 };
 
@@ -50,6 +51,41 @@ context.globalThis = context;
 
 vm.runInNewContext(code, context, { filename: 'app.js' });
 const api = context.__testApi;
+const html = fs.readFileSync('app.html', 'utf8');
+
+assert(!html.includes('pennylaneCsvButton'));
+assert(!html.includes('CSV Pennylane'));
+assert(html.includes('pennylaneXlsxButton'));
+assert(html.includes('csvButton'));
+assert(html.includes('summaryCsvButton'));
+
+api.initPennylaneSettings();
+assert.strictEqual(api.getPennylaneSettings().journalCode, 'VT');
+assert.strictEqual(api.getPennylaneSettings().clientAccount, '411000');
+assert.strictEqual(api.getPennylaneSettings().salesAccount, '707000');
+assert.strictEqual(api.getPennylaneSettings().vatAccount, '445710');
+assert.deepStrictEqual(JSON.parse(context.localStorage.store.pennylaneSettings), {
+  journalCode: 'VT',
+  clientAccount: '411000',
+  salesAccount: '707000',
+  vatAccount: '445710'
+});
+
+context.localStorage.store.pennylaneSettings = JSON.stringify({
+  journalCode: 'VTE',
+  clientAccount: '411999',
+  salesAccount: '707999',
+  vatAccount: '445799'
+});
+elements.pennylaneJournalCode.value = '';
+elements.pennylaneClientAccount.value = '';
+elements.pennylaneSalesAccount.value = '';
+elements.pennylaneVatAccount.value = '';
+api.initPennylaneSettings();
+assert.strictEqual(api.getPennylaneSettings().journalCode, 'VTE');
+assert.strictEqual(api.getPennylaneSettings().clientAccount, '411999');
+assert.strictEqual(api.getPennylaneSettings().salesAccount, '707999');
+assert.strictEqual(api.getPennylaneSettings().vatAccount, '445799');
 
 assert.strictEqual(api.normalizeAmazonDateRobust('2 juillet 2026 13:22:36 UTC'), '2026-07-02');
 assert.strictEqual(api.normalizeAmazonDateRobust('1 juil. 2026 08:31:35 UTC'), '2026-07-01');
@@ -80,7 +116,7 @@ assert.strictEqual(api.validateSourceRowsForPennylane(sampleRows).length, 0);
 
 const issues = [];
 const customSettings = { journalCode: 'VTE', clientAccount: '411999', salesAccount: '707999', vatAccount: '445799' };
-const entries = sampleRows.flatMap((row, index) => api.buildPennylaneEntriesForTransaction(row, index + 1, false, issues, customSettings));
+const entries = sampleRows.flatMap((row, index) => api.buildPennylaneEntriesForTransaction(row, index + 1, true, issues, customSettings));
 assert.strictEqual(issues.length, 0);
 assert.strictEqual(api.validatePennylaneEntries(entries).length, 0);
 assert.strictEqual(entries.length, 17);
@@ -89,6 +125,7 @@ assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[2]] === '707999'));
 assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[2]] === '445799'));
 assert(entries.every((entry) => entry[api.PENNYLANE_HEADERS[11]] === 'Canal de vente'));
 assert(entries.every((entry) => entry[api.PENNYLANE_HEADERS[13]] === ''));
+assert(entries.every((entry) => entry[api.PENNYLANE_HEADERS[14]] === ''));
 assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[8]] === 'RBS-407-1-20260703'));
 assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[7]].includes('commande 407-1')));
 assert(!entries.some((entry) => entry[api.PENNYLANE_HEADERS[8]] === '407-1' && /Remboursements/.test(entry[api.PENNYLANE_HEADERS[7]])));
