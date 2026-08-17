@@ -17,6 +17,12 @@ const PENNYLANE_HEADERS = [
   'Identifiant de ligne',
   'Identifiant de lettrage'
 ];
+const PENNYLANE_DEFAULT_SETTINGS = {
+  journalCode: 'VT',
+  clientAccount: '411000',
+  salesAccount: '707000',
+  vatAccount: '445710'
+};
 const PENNYLANE_CONFIG = {
   journalCode: 'VT',
   countryCode: 'FR',
@@ -31,6 +37,7 @@ const PENNYLANE_CONFIG = {
     }
   }
 };
+PENNYLANE_CONFIG.categoryFamily = 'Canal de vente';
 const money = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 function formatMoney(value) {
   return money.format(Number(value || 0)).replace(/[\u00A0\u202F]/g, ' ');
@@ -71,6 +78,7 @@ window.addEventListener('DOMContentLoaded', () => {
   el('summaryXlsxButton')?.addEventListener('click', exportSummaryXlsx);
   el('pennylaneCsvButton')?.addEventListener('click', exportPennylaneCsv);
   el('pennylaneXlsxButton')?.addEventListener('click', exportPennylaneXlsx);
+  initPennylaneSettings();
   setDefaultDates();
   render();
 });
@@ -96,6 +104,80 @@ function setDefaultDates() {
   const today = new Date().toISOString().slice(0, 10);
   el('periodStart').value = today;
   el('periodEnd').value = today;
+}
+
+function initPennylaneSettings() {
+  const fields = pennylaneSettingFields();
+  if (!fields.length) return;
+  const settings = getPennylaneSettings();
+  fields.forEach(({ key, input }) => {
+    input.value = settings[key];
+    input.addEventListener('input', savePennylaneSettingsFromInputs);
+  });
+  el('pennylaneResetButton')?.addEventListener('click', resetPennylaneSettings);
+}
+
+function pennylaneSettingFields() {
+  return [
+    { key: 'journalCode', input: el('pennylaneJournalCode') },
+    { key: 'clientAccount', input: el('pennylaneClientAccount') },
+    { key: 'salesAccount', input: el('pennylaneSalesAccount') },
+    { key: 'vatAccount', input: el('pennylaneVatAccount') }
+  ].filter((field) => field.input);
+}
+
+function getPennylaneSettings() {
+  const saved = readPennylaneSettings();
+  const current = { ...PENNYLANE_DEFAULT_SETTINGS, ...saved };
+  for (const { key, input } of pennylaneSettingFields()) {
+    current[key] = String(input.value ?? current[key] ?? '').trim();
+  }
+  return current;
+}
+
+function readPennylaneSettings() {
+  try {
+    const value = localStorage.getItem('pennylaneSettings');
+    return value ? JSON.parse(value) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePennylaneSettings(settings) {
+  try {
+    localStorage.setItem('pennylaneSettings', JSON.stringify(settings));
+  } catch {
+    // Le navigateur peut bloquer localStorage en navigation privee.
+  }
+}
+
+function savePennylaneSettingsFromInputs() {
+  const settings = { ...PENNYLANE_DEFAULT_SETTINGS };
+  for (const { key, input } of pennylaneSettingFields()) {
+    settings[key] = String(input.value || '').trim();
+  }
+  savePennylaneSettings(settings);
+}
+
+function resetPennylaneSettings() {
+  if (!confirm('Retablir les valeurs Pennylane par defaut ?')) return;
+  for (const { key, input } of pennylaneSettingFields()) {
+    input.value = PENNYLANE_DEFAULT_SETTINGS[key];
+  }
+  savePennylaneSettings(PENNYLANE_DEFAULT_SETTINGS);
+}
+
+function validatePennylaneSettings(settings) {
+  const labels = {
+    journalCode: 'Code journal des ventes',
+    clientAccount: 'Compte client / contrepartie',
+    salesAccount: 'Compte de ventes',
+    vatAccount: 'Compte TVA collectee'
+  };
+  return Object.entries(labels)
+    .filter(([key]) => !String(settings[key] || '').trim())
+    .map(([, label]) => 'Parametre Pennylane manquant : ' + label + '.');
 }
 
 async function handleOriental(event) {
@@ -1166,16 +1248,17 @@ function exportPennylaneXlsx() {
 
 function buildPennylaneExport(forXlsx) {
   const rows = allTransactions();
-  const issues = validateSourceRowsForPennylane(rows);
+  const settings = getPennylaneSettings();
+  const issues = [...validatePennylaneSettings(settings), ...validateSourceRowsForPennylane(rows)];
   const entries = [];
   rows.forEach((row, index) => {
-    entries.push(...buildPennylaneEntriesForTransaction(row, index + 1, forXlsx, issues));
+    entries.push(...buildPennylaneEntriesForTransaction(row, index + 1, forXlsx, issues, settings));
   });
   issues.push(...validatePennylaneEntries(entries));
   return { rows: entries, issues };
 }
 
-function buildPennylaneEntriesForTransaction(row, sequence, forXlsx, issues) {
+function buildPennylaneEntriesForTransaction(row, sequence, forXlsx, issues, settings = getPennylaneSettings()) {
   const isCredit = isRefundSource(row.source) || Number(row.ttc || 0) < 0;
   const absHt = Math.abs(toCents(row.ht));
   const absVat = Math.abs(toCents(row.vat));
@@ -1185,65 +1268,91 @@ function buildPennylaneEntriesForTransaction(row, sequence, forXlsx, issues) {
   const reference = String(row.reference || '').trim();
   const source = normalizedAccountingSource(row.source);
   const type = accountingType(row);
-  const pieceLabel = source + ' - ' + type + ' - ' + reference;
+  const pieceNumber = buildPennylanePieceNumber(row, reference);
+  const channel = pennylaneSalesChannel(row.source);
+  const pieceLabel = source + ' - ' + type + ' - ' + pieceNumber + (pieceNumber !== reference ? ' - commande ' + reference : '');
   const baseLabel = pieceLabel + ' - ' + displayPayment(row.payment);
-  const lineBase = sanitizeIdentifier(source + '-' + reference + '-' + sequence);
-  const salesAccount = rate === 0 ? PENNYLANE_CONFIG.accounts.salesExempt : PENNYLANE_CONFIG.accounts.sales;
-  const vatAccount = PENNYLANE_CONFIG.accounts.vatCollected[rate];
+  const salesAccount = { number: settings.salesAccount, label: rate === 0 ? 'Ventes de marchandises exonerees' : 'Ventes de marchandises' };
+  const vatAccount = { number: settings.vatAccount, label: 'TVA collectee ' + rate + ' %' };
+  const clientAccount = { number: settings.clientAccount, label: 'Clients ventes en ligne' };
   const entries = [];
 
   if (!salesAccount?.number) issues.push('Compte de vente manquant pour ' + reference + ' (' + rate + ' %).');
   if (absVat > 0 && !vatAccount?.number) issues.push('Compte de TVA manquant pour ' + reference + ' (' + rate + ' %).');
 
-  const add = (account, label, debitCents, creditCents, suffix, vatRateLabel, countryCode, category) => {
+  const add = (account, label, debitCents, creditCents, vatRateLabel, countryCode) => {
     entries.push(buildPennylaneRow({
       date,
       account,
       label,
       debitCents,
       creditCents,
-      lineId: lineBase + '-' + suffix,
       pieceLabel,
-      reference,
+      pieceNumber,
       vatRateLabel,
       countryCode,
-      category,
+      category: channel,
+      journalCode: settings.journalCode,
       forXlsx
     }));
   };
 
   if (isCredit) {
-    add(salesAccount, baseLabel + ' - annulation vente HT', absHt, 0, 'vente', rate + ' %', PENNYLANE_CONFIG.countryCode, PENNYLANE_CONFIG.salesCategory);
-    if (absVat > 0) add(vatAccount, baseLabel + ' - annulation TVA', absVat, 0, 'tva', '', '', '');
-    add(PENNYLANE_CONFIG.accounts.counterparty, baseLabel + ' - remboursement client', 0, absTtc, 'client', '', '', '');
+    add(salesAccount, baseLabel + ' - annulation vente HT', absHt, 0, rate + ' %', PENNYLANE_CONFIG.countryCode);
+    if (absVat > 0) add(vatAccount, baseLabel + ' - annulation TVA', absVat, 0, '', '');
+    add(clientAccount, baseLabel + ' - remboursement client', 0, absTtc, '', '');
   } else {
-    add(PENNYLANE_CONFIG.accounts.counterparty, baseLabel + ' - client TTC', absTtc, 0, 'client', '', '', '');
-    add(salesAccount, baseLabel + ' - vente HT', 0, absHt, 'vente', rate + ' %', PENNYLANE_CONFIG.countryCode, PENNYLANE_CONFIG.salesCategory);
-    if (absVat > 0) add(vatAccount, baseLabel + ' - TVA collectee', 0, absVat, 'tva', '', '', '');
+    add(clientAccount, baseLabel + ' - client TTC', absTtc, 0, '', '');
+    add(salesAccount, baseLabel + ' - vente HT', 0, absHt, rate + ' %', PENNYLANE_CONFIG.countryCode);
+    if (absVat > 0) add(vatAccount, baseLabel + ' - TVA collectee', 0, absVat, '', '');
   }
 
   return entries;
 }
 
-function buildPennylaneRow({ date, account, label, debitCents, creditCents, lineId, pieceLabel, reference, vatRateLabel, countryCode, category, forXlsx }) {
+function buildPennylanePieceNumber(row, reference) {
+  const ref = String(reference || '').trim();
+  if (/Remboursement/i.test(String(row.source || ''))) {
+    return 'RBS-' + ref + '-' + compactDate(row.date);
+  }
+  return ref;
+}
+
+function compactDate(value) {
+  const match = String(value || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return match[1] + match[2] + match[3];
+  const fr = String(value || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  return fr ? fr[3] + fr[2] + fr[1] : 'DATE';
+}
+
+function pennylaneSalesChannel(source) {
+  const value = String(source || '');
+  if (/Amazon/i.test(value)) return 'Amazon';
+  if (/Oriental Discount/i.test(value)) return 'Oriental Discount';
+  if (/Henne Discount/i.test(value)) return 'Henne Discount';
+  if (/eBay/i.test(value)) return 'eBay';
+  return 'Non precise';
+}
+
+function buildPennylaneRow({ date, account, label, debitCents, creditCents, pieceLabel, pieceNumber, vatRateLabel, countryCode, category, journalCode, forXlsx }) {
   const row = {};
   const debit = amountForPennylane(debitCents, forXlsx);
   const credit = amountForPennylane(creditCents, forXlsx);
   row[PENNYLANE_HEADERS[0]] = date;
-  row[PENNYLANE_HEADERS[1]] = PENNYLANE_CONFIG.journalCode;
+  row[PENNYLANE_HEADERS[1]] = journalCode || PENNYLANE_DEFAULT_SETTINGS.journalCode;
   row[PENNYLANE_HEADERS[2]] = account?.number || '';
   row[PENNYLANE_HEADERS[3]] = account?.label || '';
   row[PENNYLANE_HEADERS[4]] = label;
   row[PENNYLANE_HEADERS[5]] = vatRateLabel || '';
   row[PENNYLANE_HEADERS[6]] = countryCode || '';
   row[PENNYLANE_HEADERS[7]] = pieceLabel;
-  row[PENNYLANE_HEADERS[8]] = reference;
+  row[PENNYLANE_HEADERS[8]] = pieceNumber;
   row[PENNYLANE_HEADERS[9]] = debit;
   row[PENNYLANE_HEADERS[10]] = credit;
   row[PENNYLANE_HEADERS[11]] = category ? PENNYLANE_CONFIG.categoryFamily : '';
   row[PENNYLANE_HEADERS[12]] = category || '';
-  row[PENNYLANE_HEADERS[13]] = lineId;
-  row[PENNYLANE_HEADERS[14]] = reference;
+  row[PENNYLANE_HEADERS[13]] = '';
+  row[PENNYLANE_HEADERS[14]] = pieceNumber;
   return row;
 }
 
@@ -1263,20 +1372,15 @@ function validateSourceRowsForPennylane(rows) {
 function validatePennylaneEntries(entries) {
   const issues = [];
   const byPiece = new Map();
-  const lineIds = new Set();
   for (const entry of entries) {
     const piece = entry[PENNYLANE_HEADERS[7]] || 'piece sans libelle';
     const debit = centsFromPennylane(entry[PENNYLANE_HEADERS[9]]);
     const credit = centsFromPennylane(entry[PENNYLANE_HEADERS[10]]);
     const account = entry[PENNYLANE_HEADERS[2]];
-    const lineId = entry[PENNYLANE_HEADERS[13]];
     if (!account) issues.push(piece + ' : compte comptable manquant.');
     if (!Number.isFinite(debit) || !Number.isFinite(credit)) issues.push(piece + ' : montant comptable invalide.');
     if (debit > 0 && credit > 0) issues.push(piece + ' : une ligne ne peut pas etre a la fois au debit et au credit.');
     if (debit === 0 && credit === 0) issues.push(piece + ' : ligne comptable sans montant.');
-    if (!lineId) issues.push(piece + ' : identifiant de ligne manquant.');
-    if (lineIds.has(lineId)) issues.push(piece + ' : identifiant de ligne en doublon (' + lineId + ').');
-    lineIds.add(lineId);
     const item = byPiece.get(piece) || { debit: 0, credit: 0, count: 0 };
     item.debit += debit;
     item.credit += credit;

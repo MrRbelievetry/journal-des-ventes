@@ -29,9 +29,14 @@ button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--
 button.secondary:hover { background: #f9fafb; }
 .error { color: var(--error); margin: 0; }
 .app-shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 44px; }
-.app-header, .period-panel, .actions-panel, .summary-panel, .detail-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.app-header, .period-panel, .actions-panel, .summary-panel, .detail-panel, .pennylane-settings { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
 .app-header { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 24px; margin-bottom: 16px; }
 .period-panel { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; padding: 18px; margin-bottom: 16px; }
+.pennylane-settings { padding: 14px 18px; margin-bottom: 16px; }
+.pennylane-settings summary { cursor: pointer; font-weight: 700; color: #344054; }
+.pennylane-settings-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.pennylane-settings-actions { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-top: 14px; }
+.pennylane-settings-actions p { margin: 0; color: var(--muted); font-size: 13px; }
 .sources-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .source-card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 16px; min-height: 190px; }
 .source-card.active { border-top: 4px solid var(--accent); }
@@ -52,7 +57,8 @@ td:nth-last-child(-n+3), th:nth-last-child(-n+3) { text-align: right; }
 tr:last-child td { border-bottom: 0; }
 @media (max-width: 800px) {
   .app-header, .actions-panel { align-items: stretch; flex-direction: column; }
-  .period-panel, .sources-grid, .summary-cards { grid-template-columns: 1fr; }
+  .period-panel, .sources-grid, .summary-cards, .pennylane-settings-grid { grid-template-columns: 1fr; }
+  .pennylane-settings-actions { align-items: stretch; flex-direction: column; }
 }
 
 .source-links-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin-bottom: 16px; display: grid; gap: 14px; }

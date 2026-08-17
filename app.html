@@ -11,7 +11,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.4/jspdf.plugin.autotable.min.js" defer></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
-    <script src="app.js?v=36" defer></script>
+    <script src="app.js?v=37" defer></script>
       </head>
   <body>
     <main>
@@ -41,6 +41,31 @@
             <input id="companyName" type="text" value="Entreprise individuelle REBAI" placeholder="Nom de l'entreprise">
           </div>
         </section>
+        <details class="pennylane-settings">
+          <summary>Parametres Pennylane</summary>
+          <div class="pennylane-settings-grid">
+            <div>
+              <label for="pennylaneJournalCode">Code journal des ventes</label>
+              <input id="pennylaneJournalCode" type="text" autocomplete="off">
+            </div>
+            <div>
+              <label for="pennylaneClientAccount">Compte client / contrepartie</label>
+              <input id="pennylaneClientAccount" type="text" inputmode="numeric" autocomplete="off">
+            </div>
+            <div>
+              <label for="pennylaneSalesAccount">Compte de ventes</label>
+              <input id="pennylaneSalesAccount" type="text" inputmode="numeric" autocomplete="off">
+            </div>
+            <div>
+              <label for="pennylaneVatAccount">Compte TVA collectee</label>
+              <input id="pennylaneVatAccount" type="text" inputmode="numeric" autocomplete="off">
+            </div>
+          </div>
+          <div class="pennylane-settings-actions">
+            <p>Ces parametres concernent uniquement les exports CSV Pennylane et Excel Pennylane.</p>
+            <button id="pennylaneResetButton" type="button" class="secondary">Retablir les valeurs par defaut</button>
+          </div>
+        </details>
 <section class="sources-grid">
           <article class="source-card active">
             <div>

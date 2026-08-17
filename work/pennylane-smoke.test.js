@@ -8,6 +8,10 @@ globalThis.__testApi = {
   normalizeAmazonDateRobust,
   parseAmazonCsv,
   buildPennylaneEntriesForTransaction,
+  buildPennylanePieceNumber,
+  getPennylaneSettings,
+  resetPennylaneSettings,
+  validatePennylaneSettings,
   validateSourceRowsForPennylane,
   validatePennylaneEntries,
   centsFromPennylane
@@ -15,7 +19,12 @@ globalThis.__testApi = {
 
 const elements = {
   periodStart: { value: '2026-07-01' },
-  periodEnd: { value: '2026-07-31' }
+  periodEnd: { value: '2026-07-31' },
+  pennylaneJournalCode: { value: 'VT', addEventListener() {} },
+  pennylaneClientAccount: { value: '411000', addEventListener() {} },
+  pennylaneSalesAccount: { value: '707000', addEventListener() {} },
+  pennylaneVatAccount: { value: '445710', addEventListener() {} },
+  pennylaneResetButton: { addEventListener() {} }
 };
 
 const context = {
@@ -33,6 +42,8 @@ const context = {
   window: { addEventListener() {} },
   document: { getElementById(id) { return elements[id] || { value: '', addEventListener() {}, hidden: false, textContent: '', innerHTML: '' }; } },
   sessionStorage: { getItem() { return null; }, setItem() {}, removeItem() {} },
+  localStorage: { store: {}, getItem(key) { return this.store[key] || null; }, setItem(key, value) { this.store[key] = String(value); } },
+  confirm() { return true; },
   alert(message) { throw new Error(message); }
 };
 context.globalThis = context;
@@ -58,18 +69,36 @@ assert.strictEqual(amazonFixtureRows[0].date, '2026-07-01');
 
 const sampleRows = [
   { source: 'Amazon', date: '2026-07-02', reference: '407-1', payment: 'Amazon', vatRate: 20, ht: 100, vat: 20, ttc: 120 },
-  { source: 'Amazon - Remboursement', date: '2026-07-03', reference: '407-2', payment: 'Remboursement Amazon', vatRate: 20, ht: -10, vat: -2, ttc: -12 },
+  { source: 'Amazon - Remboursement', date: '2026-07-03', reference: '407-1', payment: 'Remboursement Amazon', vatRate: 20, ht: -10, vat: -2, ttc: -12 },
   { source: 'Oriental Discount - Avoir', date: '2026-07-04', reference: 'AV0001', payment: 'PayPal', vatRate: 20, ht: -30, vat: -6, ttc: -36 },
-  { source: 'Oriental Discount', date: '2026-07-05', reference: 'FA0001', payment: 'PayPal', vatRate: 0, ht: 44.02, vat: 0, ttc: 44.02 }
+  { source: 'Oriental Discount', date: '2026-07-05', reference: 'FA0001', payment: 'PayPal', vatRate: 0, ht: 44.02, vat: 0, ttc: 44.02 },
+  { source: 'Henne Discount', date: '2026-07-06', reference: 'FAH001', payment: 'CB', vatRate: 20, ht: 10, vat: 2, ttc: 12 },
+  { source: 'eBay', date: '2026-07-07', reference: 'EB001', payment: 'eBay', vatRate: 20, ht: 20, vat: 4, ttc: 24 }
 ];
 
 assert.strictEqual(api.validateSourceRowsForPennylane(sampleRows).length, 0);
 
 const issues = [];
-const entries = sampleRows.flatMap((row, index) => api.buildPennylaneEntriesForTransaction(row, index + 1, false, issues));
+const customSettings = { journalCode: 'VTE', clientAccount: '411999', salesAccount: '707999', vatAccount: '445799' };
+const entries = sampleRows.flatMap((row, index) => api.buildPennylaneEntriesForTransaction(row, index + 1, false, issues, customSettings));
 assert.strictEqual(issues.length, 0);
 assert.strictEqual(api.validatePennylaneEntries(entries).length, 0);
-assert.strictEqual(entries.length, 11);
+assert.strictEqual(entries.length, 17);
+assert(entries.every((entry) => entry[api.PENNYLANE_HEADERS[1]] === 'VTE'));
+assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[2]] === '707999'));
+assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[2]] === '445799'));
+assert(entries.every((entry) => entry[api.PENNYLANE_HEADERS[11]] === 'Canal de vente'));
+assert(entries.every((entry) => entry[api.PENNYLANE_HEADERS[13]] === ''));
+assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[8]] === 'RBS-407-1-20260703'));
+assert(entries.some((entry) => entry[api.PENNYLANE_HEADERS[7]].includes('commande 407-1')));
+assert(!entries.some((entry) => entry[api.PENNYLANE_HEADERS[8]] === '407-1' && /Remboursements/.test(entry[api.PENNYLANE_HEADERS[7]])));
+
+const categories = new Map(entries.map((entry) => [entry[api.PENNYLANE_HEADERS[7]], entry[api.PENNYLANE_HEADERS[12]]]));
+assert([...categories.values()].includes('Amazon'));
+assert([...categories.values()].includes('Oriental Discount'));
+assert([...categories.values()].includes('Henne Discount'));
+assert([...categories.values()].includes('eBay'));
+assert.strictEqual(api.buildPennylanePieceNumber(sampleRows[1], sampleRows[1].reference), 'RBS-407-1-20260703');
 
 const byPiece = new Map();
 for (const entry of entries) {
@@ -85,5 +114,15 @@ for (const [piece, totals] of byPiece) {
 
 const invalid = [{ source: 'Amazon', date: '', reference: '407-3', payment: 'Amazon', vatRate: 20, ht: 10, vat: 2, ttc: 12 }];
 assert(api.validateSourceRowsForPennylane(invalid).some((issue) => issue.includes('date')));
+
+elements.pennylaneSalesAccount.value = '707123';
+assert.strictEqual(api.getPennylaneSettings().salesAccount, '707123');
+elements.pennylaneJournalCode.value = '';
+assert(api.validatePennylaneSettings(api.getPennylaneSettings()).some((issue) => issue.includes('Code journal')));
+api.resetPennylaneSettings();
+assert.strictEqual(api.getPennylaneSettings().journalCode, 'VT');
+assert.strictEqual(api.getPennylaneSettings().clientAccount, '411000');
+assert.strictEqual(api.getPennylaneSettings().salesAccount, '707000');
+assert.strictEqual(api.getPennylaneSettings().vatAccount, '445710');
 
 console.log('Pennylane smoke tests OK');
